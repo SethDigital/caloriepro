@@ -30,8 +30,23 @@ jobs:
       - name: Build release APK
         run: ./gradlew --stacktrace assembleRelease
 
-      - name: Show generated database schema
-        run: find app/schemas -name '*.json' -print -exec cat {} \;
+      # The build regenerates app/schemas. Fail if it no longer matches what is
+      # committed, so schema changes can't ship without a migration.
+      - name: Check the database schema is committed
+        run: |
+          status=0
+          for f in $(git ls-files app/schemas); do
+            if ! diff <(git show "HEAD:$f" | jq -S .) <(jq -S . "$f"); then
+              echo "::error file=$f::The database schema changed. Commit the regenerated file and add a Room migration."
+              status=1
+            fi
+          done
+          untracked=$(git ls-files --others --exclude-standard app/schemas)
+          if [ -n "$untracked" ]; then
+            echo "::error::New database schema files need to be committed along with a Room migration: $untracked"
+            status=1
+          fi
+          exit $status
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk CaloriePro.apk

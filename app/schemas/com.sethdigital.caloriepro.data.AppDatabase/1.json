@@ -1,0 +1,134 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "358181e1f9882f2cdcb9dd1c47ca23cc",
+    "entities": [
+      {
+        "tableName": "food_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `epochDay` INTEGER NOT NULL, `name` TEXT NOT NULL, `meal` TEXT NOT NULL, `servings` REAL NOT NULL, `servingSize` TEXT, `calories` REAL NOT NULL, `proteinG` REAL, `carbsG` REAL, `fatG` REAL, `saturatedFatG` REAL, `sugarG` REAL, `fiberG` REAL, `sodiumMg` REAL, `caffeineMg` REAL, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epochDay",
+            "columnName": "epochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meal",
+            "columnName": "meal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servings",
+            "columnName": "servings",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servingSize",
+            "columnName": "servingSize",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "calories",
+            "columnName": "calories",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proteinG",
+            "columnName": "proteinG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "carbsG",
+            "columnName": "carbsG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fatG",
+            "columnName": "fatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "saturatedFatG",
+            "columnName": "saturatedFatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sugarG",
+            "columnName": "sugarG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fiberG",
+            "columnName": "fiberG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sodiumMg",
+            "columnName": "sodiumMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "caffeineMg",
+            "columnName": "caffeineMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_food_entries_epochDay",
+            "unique": false,
+            "columnNames": [
+              "epochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_food_entries_epochDay` ON `${TABLE_NAME}` (`epochDay`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '358181e1f9882f2cdcb9dd1c47ca23cc')"
+    ]
+  }
+}
