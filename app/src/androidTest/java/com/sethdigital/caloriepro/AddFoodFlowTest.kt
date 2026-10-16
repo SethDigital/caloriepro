@@ -65,7 +65,9 @@ class AddFoodFlowTest {
                 compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString()
             }.getOrElse { "(could not read the screen: $it)" }
             val state = compose.activityRule.scenario.state
-            throw AssertionError("\"$text\" never appeared. Activity state: $state. On screen:\n$screen", e)
+            // One line, because the Gradle console only shows the first lines of a failure.
+            val oneLine = screen.lines().joinToString(" ⏎ ") { it.trim() }
+            throw AssertionError("\"$text\" never appeared. Activity state: $state. On screen: $oneLine", e)
         }
     }
 }

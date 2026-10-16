@@ -122,19 +122,23 @@ fun DayScreen(
             )
         },
         floatingActionButton = {
+            // The content-slot ExtendedFloatingActionButton keeps the label in the
+            // accessibility tree; the text/icon overload clears the text's semantics.
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ExtendedFloatingActionButton(
                     onClick = { onScanLabel(state.date) },
-                    icon = { Icon(painterResource(R.drawable.ic_camera), contentDescription = null) },
-                    text = { Text("Scan label") },
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-                ExtendedFloatingActionButton(
-                    onClick = { onAddFood(state.date) },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Add food") },
-                )
+                ) {
+                    Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Scan label")
+                }
+                ExtendedFloatingActionButton(onClick = { onAddFood(state.date) }) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    Text("Add food")
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
