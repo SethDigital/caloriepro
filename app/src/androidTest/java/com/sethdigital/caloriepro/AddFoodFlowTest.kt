@@ -1,5 +1,8 @@
 package com.sethdigital.caloriepro
 
+import android.app.KeyguardManager
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -11,6 +14,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.printToString
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,6 +24,19 @@ class AddFoodFlowTest {
 
     @get:Rule
     val compose = createAndroidComposeRule<MainActivity>()
+
+    /** A freshly booted emulator may be locked or asleep; make sure the app is actually on screen. */
+    @Before
+    fun showActivity() {
+        compose.activityRule.scenario.onActivity { activity ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                activity.setShowWhenLocked(true)
+                activity.setTurnScreenOn(true)
+            }
+            activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity.getSystemService(KeyguardManager::class.java)?.requestDismissKeyguard(activity, null)
+        }
+    }
 
     @Test
     fun manuallyAddedFoodShowsUpOnToday() {
@@ -43,9 +60,12 @@ class AddFoodFlowTest {
             compose.waitUntil(timeoutMillis) {
                 compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
             }
-        } catch (e: Exception) {
-            val screen = compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString()
-            throw AssertionError("\"$text\" never appeared. On screen:\n$screen", e)
+        } catch (e: Throwable) { // ComposeTimeoutException is a Throwable, not an Exception
+            val screen = runCatching {
+                compose.onAllNodes(isRoot(), useUnmergedTree = true).printToString()
+            }.getOrElse { "(could not read the screen: $it)" }
+            val state = compose.activityRule.scenario.state
+            throw AssertionError("\"$text\" never appeared. Activity state: $state. On screen:\n$screen", e)
         }
     }
 }
