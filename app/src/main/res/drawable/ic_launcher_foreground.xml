@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A flame, drawn inside the 66dp safe zone of the 108dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,27C58,36 70,43 70,58C70,69 62.8,78 54,78C45.2,78 38,69 38,58C38,50.5 42,45 46,40.5C46.5,46.5 49.5,50 53,50.5C50.5,43 50.8,34.5 54,27Z" />
+    <path
+        android:fillColor="#C8E6C9"
+        android:pathData="M54,52C56.5,57 61,60 61,66C61,70.5 57.9,74 54,74C50.1,74 47,70.5 47,66C47,61.5 50.5,58.5 54,52Z" />
+</vector>
