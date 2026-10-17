@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sethdigital.caloriepro.R
 import com.sethdigital.caloriepro.data.FoodEntry
 import com.sethdigital.caloriepro.data.Meal
+import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
 import com.sethdigital.caloriepro.scan.ScannerScreen
 import com.sethdigital.caloriepro.ui.formatAmount

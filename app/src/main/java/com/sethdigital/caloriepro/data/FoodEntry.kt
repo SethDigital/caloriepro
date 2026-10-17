@@ -66,30 +66,6 @@ val FoodEntry.totals: NutrientTotals
         caffeineMg = (caffeineMg ?: 0.0) * servings,
     )
 
-data class NutrientTotals(
-    val calories: Double = 0.0,
-    val proteinG: Double = 0.0,
-    val carbsG: Double = 0.0,
-    val fatG: Double = 0.0,
-    val saturatedFatG: Double = 0.0,
-    val sugarG: Double = 0.0,
-    val fiberG: Double = 0.0,
-    val sodiumMg: Double = 0.0,
-    val caffeineMg: Double = 0.0,
-) {
-    operator fun plus(o: NutrientTotals) = NutrientTotals(
-        calories + o.calories,
-        proteinG + o.proteinG,
-        carbsG + o.carbsG,
-        fatG + o.fatG,
-        saturatedFatG + o.saturatedFatG,
-        sugarG + o.sugarG,
-        fiberG + o.fiberG,
-        sodiumMg + o.sodiumMg,
-        caffeineMg + o.caffeineMg,
-    )
-}
-
 fun List<FoodEntry>.sumTotals(): NutrientTotals = fold(NutrientTotals()) { acc, e -> acc + e.totals }
 
 /** Totals for one day, computed by the database for the history screen. */

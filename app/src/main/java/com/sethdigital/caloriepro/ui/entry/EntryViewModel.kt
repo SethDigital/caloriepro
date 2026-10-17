@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.sethdigital.caloriepro.data.FoodEntry
 import com.sethdigital.caloriepro.data.FoodRepository
 import com.sethdigital.caloriepro.data.Meal
+import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
 import com.sethdigital.caloriepro.data.date
 import com.sethdigital.caloriepro.scan.ScanResult
@@ -25,18 +26,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
-
-/** Optional per-serving nutrients shown on the form, in display order. */
-enum class Nutrient(val label: String, val unit: String) {
-    PROTEIN("Protein", "g"),
-    CARBS("Carbs", "g"),
-    FAT("Fat", "g"),
-    SATURATED_FAT("Saturated fat", "g"),
-    SUGAR("Sugar", "g"),
-    FIBER("Fiber", "g"),
-    SODIUM("Sodium", "mg"),
-    CAFFEINE("Caffeine", "mg"),
-}
 
 /** The form exactly as typed, so partial input like "1." survives. */
 data class EntryForm(

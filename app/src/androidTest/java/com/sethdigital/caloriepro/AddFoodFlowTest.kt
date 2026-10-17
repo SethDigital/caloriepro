@@ -3,7 +3,9 @@ package com.sethdigital.caloriepro
 import android.app.KeyguardManager
 import android.os.Build
 import android.view.WindowManager
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,7 +15,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.printToString
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.sethdigital.caloriepro.data.Goals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -28,6 +32,7 @@ class AddFoodFlowTest {
     /** A freshly booted emulator may be locked or asleep; make sure the app is actually on screen. */
     @Before
     fun showActivity() {
+        ApplicationProvider.getApplicationContext<CalorieApp>().container.settingsRepository.setGoals(Goals())
         compose.activityRule.scenario.onActivity { activity ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 activity.setShowWhenLocked(true)
@@ -52,6 +57,8 @@ class AddFoodFlowTest {
         waitForText(name)
         compose.onNodeWithText(name).assertIsDisplayed()
         compose.onNodeWithText("Scan label").assertIsDisplayed()
+        // Protein is measured against the recommended 50 g a day.
+        compose.onNodeWithTag("meter_protein").assert(hasText("/ 50 g", substring = true))
     }
 
     /** Waits for [text] to be on screen, failing with a dump of what is shown instead. */

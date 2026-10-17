@@ -2,9 +2,16 @@
 
 A calorie counter for Android that keeps everything on your phone.
 
-- **Daily log by date.** Today's food grouped by meal, with totals for calories,
-  protein, carbs, fat, sugar and caffeine against your goals. Move between days
-  with the arrows or the calendar.
+- **Daily log by date.** Today's food grouped by meal, with calories against
+  your goal and a meter for each nutrient against its daily limit. Anything
+  you've gone over is called out. Move between days with the arrows or the
+  calendar.
+- **Recommended daily limits, or your own.** Out of the box the limits are the
+  U.S. FDA Daily Values from nutrition labels (2,000 kcal diet): protein at
+  least 50 g, carbs up to 275 g, fat up to 78 g, saturated fat up to 20 g, sugar
+  up to 50 g, fiber at least 28 g, sodium up to 2,300 mg, plus caffeine up to
+  400 mg. Change any of them in Settings, or put them back with
+  "Use recommended".
 - **Manual entry.** Type in a food's name, servings and nutrition values.
   Foods you've logged before show up as suggestions, so re-logging takes one tap.
 - **Label scanning.** Point the camera at the nutrition facts on a package (or

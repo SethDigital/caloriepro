@@ -58,7 +58,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,7 +68,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sethdigital.caloriepro.R
 import com.sethdigital.caloriepro.data.FoodEntry
 import com.sethdigital.caloriepro.data.Goals
+import com.sethdigital.caloriepro.data.LimitKind
 import com.sethdigital.caloriepro.data.Meal
+import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
 import com.sethdigital.caloriepro.data.sumTotals
 import com.sethdigital.caloriepro.data.totals
@@ -261,42 +265,53 @@ private fun SummaryCard(totals: NutrientTotals, goals: Goals) {
                     .fillMaxWidth()
                     .height(10.dp),
             )
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Stat("Protein", "${totals.proteinG.formatAmount()} g")
-                Stat("Carbs", "${totals.carbsG.formatAmount()} g")
-                Stat("Fat", "${totals.fatG.formatAmount()} g")
-                Stat("Sugar", "${totals.sugarG.formatAmount()} g")
+            val overLimits = goals.overLimits(totals)
+            if (overLimits.isNotEmpty()) {
+                Text(
+                    "Over your daily limit for ${overLimits.joinLabels()}",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
-            CaffeineMeter(caffeineMg = totals.caffeineMg, limitMg = goals.caffeineMg)
+            for (pair in Nutrient.entries.chunked(2)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    for (n in pair) {
+                        NutrientMeter(n, amount = n.amountIn(totals), limit = goals.limit(n), modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
 
+/** One nutrient's total against its daily limit (or target, for minimums). */
 @Composable
-private fun Stat(label: String, value: String) {
-    Column {
-        Text(label, style = MaterialTheme.typography.labelMedium)
-        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun CaffeineMeter(caffeineMg: Double, limitMg: Int) {
-    val over = caffeineMg > limitMg
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Caffeine", style = MaterialTheme.typography.labelLarge)
-            Text(
-                "${caffeineMg.formatWhole()} / ${limitMg.formatWhole()} mg",
-                style = MaterialTheme.typography.labelLarge,
-                color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-        }
+private fun NutrientMeter(nutrient: Nutrient, amount: Double, limit: Int, modifier: Modifier = Modifier) {
+    val over = nutrient.isOver(amount, limit)
+    val met = nutrient.isMet(amount, limit)
+    val shown = nutrient.rounded(amount).let { if (nutrient.unit == "mg") it.formatWhole() else it.formatAmount() }
+    Column(
+        modifier
+            .semantics(mergeDescendants = true) {}
+            .testTag("meter_${nutrient.name.lowercase()}"),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(nutrient.label, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            "$shown / ${limit.formatWhole()} ${nutrient.unit}${if (met) " ✓" else ""}",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
+        )
         LinearProgressIndicator(
-            progress = { if (limitMg > 0) (caffeineMg / limitMg).toFloat().coerceIn(0f, 1f) else 0f },
-            color = if (over) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+            progress = { if (limit > 0) (amount / limit).toFloat().coerceIn(0f, 1f) else 0f },
+            color = when {
+                over -> MaterialTheme.colorScheme.error
+                nutrient.kind == LimitKind.MINIMUM && !met -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.primary
+            },
             trackColor = MaterialTheme.colorScheme.surface,
             strokeCap = StrokeCap.Round,
             modifier = Modifier
@@ -304,6 +319,12 @@ private fun CaffeineMeter(caffeineMg: Double, limitMg: Int) {
                 .height(6.dp),
         )
     }
+}
+
+/** "sodium", "fat and sodium", "fat, sugar and sodium". */
+private fun List<Nutrient>.joinLabels(): String {
+    val names = map { it.label.lowercase() }
+    return if (names.size <= 1) names.joinToString() else names.dropLast(1).joinToString(", ") + " and " + names.last()
 }
 
 @Composable
