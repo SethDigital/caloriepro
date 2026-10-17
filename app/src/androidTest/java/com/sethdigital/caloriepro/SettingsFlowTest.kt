@@ -4,8 +4,6 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -30,31 +28,31 @@ class SettingsFlowTest {
     private val settings get() = ApplicationProvider.getApplicationContext<CalorieApp>().container.settingsRepository
 
     @Before
+    fun setUp() {
+        settings.setGoals(Goals())
+        compose.keepScreenOn()
+    }
+
     @After
     fun useRecommendedGoals() = settings.setGoals(Goals())
 
     @Test
     fun ownLimitsReplaceTheRecommendedOnes() {
-        waitForMeter("meter_protein", "/ 50 g")
+        compose.waitFor(hasTestTag("meter_protein") and hasText("/ 50 g", substring = true))
 
         compose.onNodeWithContentDescription("Settings").performClick()
         setField("limit_protein", "120")
         setField("limit_sodium", "900")
-        compose.onAllNodesWithText("Save").onFirst().performClick()
+        compose.onNodeWithTag("save_settings").performScrollTo().performClick()
+        compose.onNodeWithTag("save_settings").assert(hasText("Saved"))
         compose.onNodeWithContentDescription("Back").performClick()
 
-        waitForMeter("meter_protein", "/ 120 g")
+        compose.waitFor(hasTestTag("meter_protein") and hasText("/ 120 g", substring = true))
         compose.onNodeWithTag("meter_sodium").assert(hasText("/ 900 mg", substring = true))
     }
 
     private fun setField(tag: String, value: String) {
         compose.onNodeWithTag(tag).performScrollTo().performTextClearance()
         compose.onNodeWithTag(tag).performTextInput(value)
-    }
-
-    private fun waitForMeter(tag: String, text: String) {
-        compose.waitUntil(timeoutMillis = 15_000) {
-            compose.onAllNodes(hasTestTag(tag) and hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty()
-        }
     }
 }

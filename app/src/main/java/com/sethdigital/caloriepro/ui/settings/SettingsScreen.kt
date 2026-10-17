@@ -97,7 +97,12 @@ fun SettingsScreen(viewModel: SettingsViewModel, onBack: () -> Unit) {
                 OutlinedButton(onClick = viewModel::useRecommended, modifier = Modifier.weight(1f)) {
                     Text("Use recommended")
                 }
-                Button(onClick = viewModel::save, modifier = Modifier.weight(1f)) {
+                Button(
+                    onClick = viewModel::save,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("save_settings"),
+                ) {
                     Text(if (viewModel.saved) "Saved" else "Save")
                 }
             }
