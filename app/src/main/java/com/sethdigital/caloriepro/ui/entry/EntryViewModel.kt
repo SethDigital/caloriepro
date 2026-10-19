@@ -7,12 +7,16 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sethdigital.caloriepro.data.Barcodes
 import com.sethdigital.caloriepro.data.FoodEntry
 import com.sethdigital.caloriepro.data.FoodRepository
 import com.sethdigital.caloriepro.data.Meal
 import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
+import com.sethdigital.caloriepro.data.SavedMealWithItems
+import com.sethdigital.caloriepro.data.ServingWeight
 import com.sethdigital.caloriepro.data.date
+import com.sethdigital.caloriepro.data.servingWeight
 import com.sethdigital.caloriepro.scan.ScanResult
 import com.sethdigital.caloriepro.ui.parseAmount
 import com.sethdigital.caloriepro.ui.toInputText
@@ -31,16 +35,37 @@ import java.time.LocalTime
 data class EntryForm(
     val name: String = "",
     val meal: Meal = Meal.SNACK,
-    val servings: String = "1",
+    /** How much was eaten: a number of servings, or a weight when [byWeight]. */
+    val amount: String = "1",
+    val byWeight: Boolean = false,
     val servingSize: String = "",
     val calories: String = "",
     val nutrients: Map<Nutrient, String> = emptyMap(),
+    /** The product barcode this food will be remembered under. */
+    val barcode: String? = null,
 ) {
     fun nutrient(n: Nutrient): String = nutrients[n].orEmpty()
 
+    /** The weight of one serving, when the serving size includes one ("2/3 cup (55g)"). */
+    val servingWeight: ServingWeight? get() = ServingWeight.parse(servingSize)
+
+    /** Servings eaten, or null while the amount is incomplete. */
+    fun servings(): Double? {
+        val value = amount.parseAmount()?.takeIf { it > 0 } ?: return null
+        return if (byWeight) servingWeight?.servingsIn(value) else value
+    }
+
+    /** The same amount expressed by weight ([on]) or in servings. */
+    fun withByWeight(on: Boolean): EntryForm {
+        if (on == byWeight) return this
+        val weight = servingWeight ?: return copy(byWeight = false)
+        val converted = servings()?.let { if (on) weight.weightOf(it) else it }?.toInputText() ?: amount
+        return copy(byWeight = on, amount = converted)
+    }
+
     /** What saving this form would log, or null while the numbers are incomplete. */
     fun previewTotals(): NutrientTotals? {
-        val servings = servings.parseAmount()?.takeIf { it > 0 } ?: return null
+        val servings = servings() ?: return null
         val calories = calories.parseAmount() ?: return null
         fun total(n: Nutrient) = (nutrient(n).parseAmount() ?: 0.0) * servings
         return NutrientTotals(
@@ -57,23 +82,30 @@ data class EntryForm(
     }
 
     companion object {
-        fun from(entry: FoodEntry) = EntryForm(
-            name = entry.name,
-            meal = entry.meal,
-            servings = entry.servings.toInputText(),
-            servingSize = entry.servingSize.orEmpty(),
-            calories = entry.calories.toInputText(),
-            nutrients = nutrientText(
-                Nutrient.PROTEIN to entry.proteinG,
-                Nutrient.CARBS to entry.carbsG,
-                Nutrient.FAT to entry.fatG,
-                Nutrient.SATURATED_FAT to entry.saturatedFatG,
-                Nutrient.SUGAR to entry.sugarG,
-                Nutrient.FIBER to entry.fiberG,
-                Nutrient.SODIUM to entry.sodiumMg,
-                Nutrient.CAFFEINE to entry.caffeineMg,
-            ),
-        )
+        fun from(entry: FoodEntry): EntryForm {
+            val weight = entry.servingWeight
+            val byWeight = entry.byWeight && weight != null
+            val amount = if (byWeight && weight != null) weight.weightOf(entry.servings) else entry.servings
+            return EntryForm(
+                name = entry.name,
+                meal = entry.meal,
+                amount = amount.toInputText(),
+                byWeight = byWeight,
+                servingSize = entry.servingSize.orEmpty(),
+                calories = entry.calories.toInputText(),
+                nutrients = nutrientText(
+                    Nutrient.PROTEIN to entry.proteinG,
+                    Nutrient.CARBS to entry.carbsG,
+                    Nutrient.FAT to entry.fatG,
+                    Nutrient.SATURATED_FAT to entry.saturatedFatG,
+                    Nutrient.SUGAR to entry.sugarG,
+                    Nutrient.FIBER to entry.fiberG,
+                    Nutrient.SODIUM to entry.sodiumMg,
+                    Nutrient.CAFFEINE to entry.caffeineMg,
+                ),
+                barcode = entry.barcode,
+            )
+        }
     }
 }
 
@@ -82,7 +114,18 @@ private fun nutrientText(vararg values: Pair<Nutrient, Double?>): Map<Nutrient, 
     values.mapNotNull { (n, v) -> v?.let { n to it.toInputText() } }.toMap()
 
 /** Shown after a scan fills in the form. */
-data class ScanNotice(val filledCount: Int, val caloriesFound: Boolean, val rows: List<String>)
+sealed interface ScanNotice {
+    /** Values read from a photo of the label; [barcodeSaved] if a barcode will remember them. */
+    data class FromLabel(
+        val filledCount: Int,
+        val caloriesFound: Boolean,
+        val rows: List<String>,
+        val barcodeSaved: Boolean,
+    ) : ScanNotice
+
+    /** A barcode that was saved before, filled in from the food last logged with it. */
+    data class FromBarcode(val foodName: String) : ScanNotice
+}
 
 class EntryViewModel(
     private val savedStateHandle: SavedStateHandle,
@@ -114,6 +157,10 @@ class EntryViewModel(
     var scanNotice by mutableStateOf<ScanNotice?>(null)
         private set
 
+    /** Shown in the camera view, e.g. when a scanned barcode is new. */
+    var barcodeNote by mutableStateOf<String?>(null)
+        private set
+
     var servingsPerContainer by mutableStateOf<Double?>(null)
         private set
 
@@ -128,6 +175,9 @@ class EntryViewModel(
         .flatMapLatest { foods.observeRecentFoods(it, limit = 6) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val savedMeals: StateFlow<List<SavedMealWithItems>> = foods.observeSavedMeals()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     init {
         if (isEditing) {
             viewModelScope.launch {
@@ -139,8 +189,8 @@ class EntryViewModel(
                 loading = false
             }
         }
-        // Open the camera straight away when coming from "Scan label", but
-        // only once, not again after rotation or process recreation.
+        // Open the camera straight away when coming from "Scan", but only
+        // once, not again after rotation or process recreation.
         if (savedStateHandle.get<Boolean>(ARG_SCAN) == true && savedStateHandle.get<Boolean>(KEY_SCAN_SHOWN) != true) {
             savedStateHandle[KEY_SCAN_SHOWN] = true
             showScanner = true
@@ -148,19 +198,59 @@ class EntryViewModel(
     }
 
     fun update(transform: EntryForm.() -> EntryForm) {
-        form = form.transform()
+        val before = form
+        var after = before.transform()
+        // When the serving size stops saying what a serving weighs, the amount
+        // can no longer be a weight: switch back to servings.
+        if (after.byWeight && after.servingWeight == null) {
+            after = after.copy(byWeight = false, amount = before.servings()?.toInputText() ?: after.amount)
+        }
+        form = after
     }
 
     fun updateNutrient(n: Nutrient, value: String) {
         form = form.copy(nutrients = form.nutrients + (n to value))
     }
 
+    fun setByWeight(on: Boolean) {
+        form = form.withByWeight(on)
+    }
+
+    fun removeBarcode() {
+        form = form.copy(barcode = null)
+    }
+
     fun openScanner() {
+        barcodeNote = null
         showScanner = true
     }
 
     fun closeScanner() {
         showScanner = false
+    }
+
+    /**
+     * A barcode was seen by the camera. A known barcode fills in the food
+     * logged with it last time; a new one is kept so the food saved now is
+     * remembered under it.
+     */
+    fun onBarcode(code: String) {
+        val barcode = Barcodes.normalize(code) ?: return
+        viewModelScope.launch {
+            val known = foods.findByBarcode(barcode)
+            if (known != null) {
+                form = EntryForm.from(known).copy(meal = form.meal, barcode = barcode)
+                servingsPerContainer = null
+                scanNotice = ScanNotice.FromBarcode(known.name)
+                invalidFields = emptySet()
+                barcodeNote = null
+                showScanner = false
+            } else {
+                form = form.copy(barcode = barcode)
+                barcodeNote = "New barcode. Take a photo of the nutrition label, and next time scanning " +
+                    "this barcode will fill everything in."
+            }
+        }
     }
 
     fun applyScan(result: ScanResult) {
@@ -175,14 +265,22 @@ class EntryViewModel(
             Nutrient.SODIUM to facts.sodiumMg,
             Nutrient.CAFFEINE to facts.caffeineMg,
         )
-        form = form.copy(
+        val updated = form.copy(
             calories = facts.calories?.toInputText() ?: form.calories,
             servingSize = facts.servingSize ?: form.servingSize,
             nutrients = form.nutrients + scanned,
+            barcode = result.barcode ?: form.barcode,
         )
+        form = if (updated.byWeight && updated.servingWeight == null) updated.copy(byWeight = false) else updated
         servingsPerContainer = facts.servingsPerContainer
-        scanNotice = ScanNotice(facts.nutrientCount, facts.calories != null, result.rows)
+        scanNotice = ScanNotice.FromLabel(
+            filledCount = facts.nutrientCount,
+            caloriesFound = facts.calories != null,
+            rows = result.rows,
+            barcodeSaved = form.barcode != null,
+        )
         invalidFields = emptySet()
+        barcodeNote = null
         showScanner = false
     }
 
@@ -196,13 +294,25 @@ class EntryViewModel(
         invalidFields = emptySet()
     }
 
+    /** Logs every food in [saved] on this day, under the chosen meal, and closes. */
+    fun logSavedMeal(saved: SavedMealWithItems) {
+        viewModelScope.launch {
+            foods.logSavedMeal(saved, date, form.meal)
+            finished = true
+        }
+    }
+
+    fun deleteSavedMeal(saved: SavedMealWithItems) {
+        viewModelScope.launch { foods.deleteSavedMeal(saved.meal) }
+    }
+
     fun save() {
         val current = form
         val calories = current.calories.parseAmount()
-        val servings = current.servings.parseAmount()
+        val servings = current.servings()
         val invalid = buildSet {
             if (calories == null || calories < 0) add("calories")
-            if (servings == null || servings <= 0) add("servings")
+            if (servings == null) add("servings")
             for (n in Nutrient.entries) {
                 val text = current.nutrient(n)
                 if (text.isNotBlank() && (text.parseAmount() ?: -1.0) < 0) add(n.name)
@@ -229,6 +339,8 @@ class EntryViewModel(
             sodiumMg = value(Nutrient.SODIUM),
             caffeineMg = value(Nutrient.CAFFEINE),
             createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+            barcode = current.barcode,
+            byWeight = current.byWeight,
         )
         viewModelScope.launch {
             foods.save(entry)

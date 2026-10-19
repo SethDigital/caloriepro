@@ -44,6 +44,11 @@ jobs:
           untracked=$(git ls-files --others --exclude-standard app/schemas)
           if [ -n "$untracked" ]; then
             echo "::error::New database schema files need to be committed along with a Room migration: $untracked"
+            # Print them so they can be committed without a local build.
+            for f in $untracked; do
+              echo "----- $f -----"
+              cat "$f"
+            done
             status=1
           fi
           exit $status

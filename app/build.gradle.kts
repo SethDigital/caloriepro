@@ -55,6 +55,10 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets {
+        // Lets migration tests open the exported schema of every version.
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
     lint {
         // The app is sideloaded, not published to Play, so Play-policy lint
         // checks should not block release builds.
@@ -89,16 +93,19 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.mlkit.vision)
 
     // On-device text recognition with the model bundled in the APK, so
     // scanning works offline and never needs Google Play services to download it.
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.barcode.scanning)
 
     testImplementation(libs.junit)
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)

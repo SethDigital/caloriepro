@@ -9,7 +9,7 @@ import com.sethdigital.caloriepro.data.SettingsRepository
 /** Holds the app's single instances of its data sources. */
 class AppContainer(context: Context) {
     private val database by lazy { AppDatabase.create(context) }
-    val foodRepository by lazy { FoodRepository(database.foodDao()) }
+    val foodRepository by lazy { FoodRepository(database.foodDao(), database.savedMealDao()) }
     val settingsRepository by lazy { SettingsRepository(context) }
 }
 

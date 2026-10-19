@@ -4,8 +4,11 @@ import android.app.KeyguardManager
 import android.os.Build
 import android.view.WindowManager
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.printToString
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 
@@ -36,5 +39,24 @@ fun AppTestRule.waitFor(matcher: SemanticsMatcher, timeoutMillis: Long = 15_000)
             "Never appeared: ${matcher.description}. Activity state: ${activityRule.scenario.state}. On screen: $oneLine",
             e,
         )
+    }
+}
+
+/**
+ * Scrolls the day's list to a node matching [matcher], waiting for it to load.
+ * The list only composes what is on screen, so a food further down can't be
+ * found without scrolling.
+ */
+fun AppTestRule.scrollDayTo(matcher: SemanticsMatcher, timeoutMillis: Long = 15_000) {
+    waitFor(hasTestTag("day_list"))
+    val deadline = System.currentTimeMillis() + timeoutMillis
+    while (true) {
+        val attempt = runCatching { onNodeWithTag("day_list").performScrollToNode(matcher) }
+        if (attempt.isSuccess) return
+        if (System.currentTimeMillis() > deadline) {
+            val reason = attempt.exceptionOrNull()?.message?.lineSequence()?.firstOrNull()
+            throw AssertionError("Never found in the day's list: ${matcher.description}. Last error: $reason")
+        }
+        Thread.sleep(200)
     }
 }

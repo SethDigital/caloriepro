@@ -18,6 +18,18 @@ A calorie counter for Android that keeps everything on your phone.
   pick a photo) and the app fills in calories, protein, carbs, fat, saturated
   fat, sugar, fiber, sodium, caffeine and the serving size. You check the
   numbers before saving.
+- **Barcode memory.** Scan a package's barcode, then photograph its label once.
+  After that, scanning the same barcode fills everything in straight away. The
+  app learns barcodes only from your own scans; there is no online food
+  database.
+- **Log by weight.** When the serving size includes a weight or volume
+  ("2/3 cup (55g)", "1 can (355 mL)"), switch the amount to grams or millilitres
+  and type how much you had. The app works out the servings. Labels given per
+  100 g work the same way.
+- **Saved meals and copying.** From a meal's menu on the day screen, copy it to
+  another day or save it under a name ("Usual breakfast"). Saved meals appear
+  at the top of Add food and log in one tap. An empty day offers to copy
+  everything from the day before.
 - **History.** A 7-day chart and per-day totals. Tap a day to open it.
 - **Swipe left** on an entry to delete it (with undo). Tap it to edit.
 
@@ -25,8 +37,8 @@ A calorie counter for Android that keeps everything on your phone.
 
 - The log lives in a local SQLite database inside the app.
 - The app has **no internet permission**, so it cannot send anything anywhere.
-- Label text is recognized on the device with Google ML Kit's bundled model.
-  Photos are never saved.
+- Label text and barcodes are recognized on the device with Google ML Kit's
+  bundled models. Photos are never saved.
 - The log is excluded from Android cloud backup. Uninstalling the app deletes it.
 
 ## Install it on your phone
@@ -51,6 +63,9 @@ Requires Android 8.0 or newer.
 - US/Canadian panels and UK/EU tables both work. For EU tables the per-serving
   column is used when there is one; otherwise values are per 100 g/ml.
 - "Show scanned text" under the scan notice shows exactly what was read.
+- Barcodes are read from the live camera view; there is no need to take a
+  photo of them. A new barcode is remembered once you photograph the label and
+  save the food.
 
 ## Building
 
@@ -72,8 +87,8 @@ losing data. Debug builds install alongside as "com.sethdigital.caloriepro.debug
 
 ```
 app/src/main/java/com/sethdigital/caloriepro/
-  data/            Room database, entries, daily summaries, goals
-  scan/            Camera screen and ML Kit text recognition
+  data/            Room database, entries, saved meals, daily summaries, goals
+  scan/            Camera screen, ML Kit text and barcode recognition
   scan/parser/     Pure-Kotlin nutrition label parser (unit tested)
   ui/day/          Daily log screen
   ui/entry/        Add/edit food form
@@ -87,5 +102,6 @@ such as `Og` for `0g`, `% Daily Value` columns, kJ/kcal, salt vs. sodium and
 per-100g columns.
 
 Database schema changes must come with a Room migration (exported schemas go
-to `app/schemas/`). There is deliberately no destructive fallback, so an update
-can never wipe the log.
+to `app/schemas/`, and `MigrationTest` checks that logged food survives each
+upgrade). There is deliberately no destructive fallback, so an update can never
+wipe the log.

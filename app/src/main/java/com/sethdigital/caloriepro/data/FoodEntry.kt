@@ -1,5 +1,6 @@
 package com.sethdigital.caloriepro.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -27,7 +28,7 @@ enum class Meal(val label: String) {
  * One food logged on one day. Nutrient values are per serving; the amount
  * eaten is [servings] × each value. Null nutrients were not entered.
  */
-@Entity(tableName = "food_entries", indices = [Index("epochDay")])
+@Entity(tableName = "food_entries", indices = [Index("epochDay"), Index("barcode")])
 data class FoodEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /** The day this was eaten, as [LocalDate.toEpochDay]. */
@@ -46,9 +47,16 @@ data class FoodEntry(
     val sodiumMg: Double?,
     val caffeineMg: Double?,
     val createdAt: Long,
+    /** The product's barcode, normalized by [Barcodes.normalize], so scanning it again finds this food. */
+    val barcode: String? = null,
+    /** Whether the amount was entered as a weight (e.g. 150 g) rather than as servings. */
+    @ColumnInfo(defaultValue = "0") val byWeight: Boolean = false,
 )
 
 // Derived values live outside the entity so Room only sees stored columns.
+
+/** The weight of one serving, when the serving size includes one. */
+val FoodEntry.servingWeight: ServingWeight? get() = ServingWeight.parse(servingSize)
 
 val FoodEntry.date: LocalDate get() = LocalDate.ofEpochDay(epochDay)
 

@@ -16,25 +16,32 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -62,6 +69,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +80,7 @@ import com.sethdigital.caloriepro.data.LimitKind
 import com.sethdigital.caloriepro.data.Meal
 import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
+import com.sethdigital.caloriepro.data.servingWeight
 import com.sethdigital.caloriepro.data.sumTotals
 import com.sethdigital.caloriepro.data.totals
 import com.sethdigital.caloriepro.ui.formatAmount
@@ -96,7 +105,21 @@ fun DayScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var copyingMeal by rememberSaveable { mutableStateOf<Meal?>(null) }
+    var savingMeal by rememberSaveable { mutableStateOf<Meal?>(null) }
     val today = LocalDate.now()
+
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { message ->
+            snackbar.currentSnackbarData?.dismiss()
+            val result = snackbar.showSnackbar(
+                message = message.text,
+                actionLabel = message.goTo?.let { "View" },
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) message.goTo?.let(viewModel::selectDate)
+        }
+    }
 
     val deleteWithUndo: (FoodEntry) -> Unit = { entry ->
         viewModel.delete(entry)
@@ -136,7 +159,7 @@ fun DayScreen(
                 ) {
                     Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
                     Spacer(Modifier.width(12.dp))
-                    Text("Scan label")
+                    Text("Scan")
                 }
                 ExtendedFloatingActionButton(onClick = { onAddFood(state.date) }) {
                     Icon(Icons.Default.Add, contentDescription = null)
@@ -150,7 +173,8 @@ fun DayScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .testTag("day_list"),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 176.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -166,13 +190,20 @@ fun DayScreen(
                 SummaryCard(totals = state.totals, goals = state.goals)
             }
             if (state.loaded && state.entries.isEmpty()) {
-                item(key = "empty") { EmptyDay() }
+                item(key = "empty") {
+                    EmptyDay(previousDayCount = state.previousDayCount, onCopyPreviousDay = viewModel::copyPreviousDay)
+                }
             }
             for (meal in Meal.entries) {
                 val mealEntries = state.entries.filter { it.meal == meal }
                 if (mealEntries.isEmpty()) continue
                 item(key = "meal-${meal.name}") {
-                    MealHeader(meal = meal, calories = mealEntries.sumTotals().calories)
+                    MealHeader(
+                        meal = meal,
+                        calories = mealEntries.sumTotals().calories,
+                        onCopy = { copyingMeal = meal },
+                        onSave = { savingMeal = meal },
+                    )
                 }
                 items(mealEntries, key = { it.id }) { entry ->
                     SwipeToDelete(onDelete = { deleteWithUndo(entry) }) {
@@ -200,6 +231,72 @@ fun DayScreen(
             DatePicker(state = pickerState)
         }
     }
+
+    copyingMeal?.let { meal ->
+        // Viewing today, the likely target is tomorrow; viewing another day, it's today.
+        val suggested = if (state.date == today) today.plusDays(1) else today
+        val pickerState = rememberDatePickerState(initialSelectedDateMillis = suggested.toUtcMillis())
+        DatePickerDialog(
+            onDismissRequest = { copyingMeal = null },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerState.selectedDateMillis?.let { viewModel.copyMeal(meal, it.utcMillisToDate()) }
+                        copyingMeal = null
+                    },
+                    enabled = pickerState.selectedDateMillis != null,
+                ) { Text("Copy") }
+            },
+            dismissButton = {
+                TextButton(onClick = { copyingMeal = null }) { Text("Cancel") }
+            },
+        ) {
+            DatePicker(
+                state = pickerState,
+                title = { Text("Copy ${meal.label.lowercase()} to", Modifier.padding(start = 24.dp, top = 16.dp)) },
+            )
+        }
+    }
+
+    savingMeal?.let { meal ->
+        SaveMealDialog(
+            meal = meal,
+            onSave = { name ->
+                viewModel.saveMeal(meal, name)
+                savingMeal = null
+            },
+            onDismiss = { savingMeal = null },
+        )
+    }
+}
+
+@Composable
+private fun SaveMealDialog(meal: Meal, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save ${meal.label.lowercase()} as a meal") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Log the same foods again in one tap from Add food.")
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    placeholder = { Text("e.g. Usual ${meal.label.lowercase()}") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    modifier = Modifier.testTag("saved_meal_name"),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 @Composable
@@ -328,29 +425,69 @@ private fun List<Nutrient>.joinLabels(): String {
 }
 
 @Composable
-private fun EmptyDay() {
+private fun EmptyDay(previousDayCount: Int, onCopyPreviousDay: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Nothing logged yet", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Tap Scan label to read the nutrition facts off a package with your camera, " +
+                "Tap Scan to read a barcode or the nutrition facts off a package with your camera, " +
                     "or Add food to type them in.",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (previousDayCount > 0) {
+                FilledTonalButton(
+                    onClick = onCopyPreviousDay,
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .testTag("copy_previous_day"),
+                ) {
+                    Text("Copy the day before (${if (previousDayCount == 1) "1 food" else "$previousDayCount foods"})")
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun MealHeader(meal: Meal, calories: Double) {
+private fun MealHeader(meal: Meal, calories: Double, onCopy: () -> Unit, onSave: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(top = 12.dp, start = 4.dp, end = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(top = 4.dp, start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(meal.label, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(
+            meal.label,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
         Text("${calories.formatWhole()} kcal", style = MaterialTheme.typography.titleSmall)
+        Box {
+            IconButton(
+                onClick = { menuOpen = true },
+                modifier = Modifier.testTag("meal_menu_${meal.name.lowercase()}"),
+            ) {
+                Icon(Icons.Default.MoreVert, contentDescription = "${meal.label} options")
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Copy to another day…") },
+                    onClick = {
+                        menuOpen = false
+                        onCopy()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Save as a meal…") },
+                    onClick = {
+                        menuOpen = false
+                        onSave()
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -358,8 +495,13 @@ private fun MealHeader(meal: Meal, calories: Double) {
 private fun EntryRow(entry: FoodEntry, onClick: () -> Unit) {
     val totals = entry.totals
     val details = buildList {
-        val servings = if (entry.servings == 1.0) "1 serving" else "${entry.servings.formatAmount()} servings"
-        add(entry.servingSize?.let { "$servings of $it" } ?: servings)
+        val weight = entry.servingWeight
+        if (entry.byWeight && weight != null) {
+            add("${weight.weightOf(entry.servings).formatAmount()} ${weight.unit}")
+        } else {
+            val servings = if (entry.servings == 1.0) "1 serving" else "${entry.servings.formatAmount()} servings"
+            add(entry.servingSize?.let { "$servings of $it" } ?: servings)
+        }
         if (entry.proteinG != null) add("${totals.proteinG.formatAmount()} g protein")
         if (entry.caffeineMg != null && entry.caffeineMg > 0) add("${totals.caffeineMg.formatWhole()} mg caffeine")
     }.joinToString(" · ")

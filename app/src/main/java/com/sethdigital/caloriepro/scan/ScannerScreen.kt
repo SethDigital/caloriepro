@@ -11,12 +11,14 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.mlkit.vision.MlKitAnalyzer
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
@@ -56,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,11 +92,18 @@ import kotlin.coroutines.resumeWithException
 import kotlin.math.max
 
 /**
- * Full-screen camera for photographing a nutrition label. Calls [onResult]
- * once a photo yields at least one nutrition value.
+ * Full-screen camera for scanning a food. Product barcodes are read live from
+ * the preview and passed to [onBarcode]; a photo of the nutrition label goes
+ * to [onResult] once it yields at least one nutrition value. [barcodeNote]
+ * is shown while the camera stays open, e.g. to say a barcode is new.
  */
 @Composable
-fun ScannerScreen(onResult: (ScanResult) -> Unit, onClose: () -> Unit) {
+fun ScannerScreen(
+    onResult: (ScanResult) -> Unit,
+    onBarcode: (String) -> Unit,
+    barcodeNote: String?,
+    onClose: () -> Unit,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
@@ -117,17 +127,30 @@ fun ScannerScreen(onResult: (ScanResult) -> Unit, onClose: () -> Unit) {
     }
 
     val scanner = remember { LabelScanner() }
+    val liveBarcodes = remember { productBarcodeScanner() }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     DisposableEffect(Unit) {
         onDispose {
             scanner.close()
+            liveBarcodes.close()
             cameraExecutor.shutdown()
+            analysisExecutor.shutdown()
         }
     }
 
     val cameraController = remember {
         LifecycleCameraController(context).apply {
-            setEnabledUseCases(CameraController.IMAGE_CAPTURE)
+            setEnabledUseCases(CameraController.IMAGE_CAPTURE or CameraController.IMAGE_ANALYSIS)
+            // Barcodes need a sharper preview frame than the default analysis size.
+            setImageAnalysisResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .setResolutionStrategy(
+                        ResolutionStrategy(Size(1280, 960), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+                    )
+                    .build()
+            )
             // Plenty of pixels for small label print without slowing recognition down.
             setImageCaptureResolutionSelector(
                 ResolutionSelector.Builder()
@@ -142,6 +165,24 @@ fun ScannerScreen(onResult: (ScanResult) -> Unit, onClose: () -> Unit) {
     DisposableEffect(lifecycleOwner, hasPermission) {
         if (hasPermission) cameraController.bindToLifecycle(lifecycleOwner)
         onDispose { cameraController.unbind() }
+    }
+
+    // Read product barcodes from the live preview, reporting each new one once.
+    val latestOnBarcode by rememberUpdatedState(onBarcode)
+    DisposableEffect(cameraController) {
+        var lastCode: String? = null
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+        cameraController.setImageAnalysisAnalyzer(
+            analysisExecutor,
+            MlKitAnalyzer(listOf(liveBarcodes), ImageAnalysis.COORDINATE_SYSTEM_ORIGINAL, mainExecutor) { result ->
+                val code = firstProductCode(result.getValue(liveBarcodes)) ?: return@MlKitAnalyzer
+                if (code != lastCode) {
+                    lastCode = code
+                    latestOnBarcode(code)
+                }
+            },
+        )
+        onDispose { cameraController.clearImageAnalysisAnalyzer() }
     }
 
     var busy by remember { mutableStateOf(false) }
@@ -223,7 +264,7 @@ fun ScannerScreen(onResult: (ScanResult) -> Unit, onClose: () -> Unit) {
             }
             if (hasPermission) {
                 Text(
-                    "Fit the Nutrition Facts panel inside the frame",
+                    "Point at the barcode, or fit the Nutrition Facts panel in the frame and take a photo",
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
@@ -233,6 +274,21 @@ fun ScannerScreen(onResult: (ScanResult) -> Unit, onClose: () -> Unit) {
                 )
             }
             Spacer(Modifier.weight(1f))
+            barcodeNote?.let {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                ) {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
             message?.let {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,

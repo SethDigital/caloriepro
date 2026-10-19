@@ -34,6 +34,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -44,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,10 +64,13 @@ import com.sethdigital.caloriepro.data.FoodEntry
 import com.sethdigital.caloriepro.data.Meal
 import com.sethdigital.caloriepro.data.Nutrient
 import com.sethdigital.caloriepro.data.NutrientTotals
+import com.sethdigital.caloriepro.data.SavedMealWithItems
+import com.sethdigital.caloriepro.data.ServingWeight
 import com.sethdigital.caloriepro.scan.ScannerScreen
 import com.sethdigital.caloriepro.ui.formatAmount
 import com.sethdigital.caloriepro.ui.formatWhole
 import com.sethdigital.caloriepro.ui.friendlyName
+import com.sethdigital.caloriepro.ui.toInputText
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,13 +81,20 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
 
     if (viewModel.showScanner) {
         BackHandler(onBack = viewModel::closeScanner)
-        ScannerScreen(onResult = viewModel::applyScan, onClose = viewModel::closeScanner)
+        ScannerScreen(
+            onResult = viewModel::applyScan,
+            onBarcode = viewModel::onBarcode,
+            barcodeNote = viewModel.barcodeNote,
+            onClose = viewModel::closeScanner,
+        )
         return
     }
 
     val form = viewModel.form
     val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val savedMeals by viewModel.savedMeals.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var deletingMeal by remember { mutableStateOf<SavedMealWithItems?>(null) }
 
     Scaffold(
         topBar = {
@@ -133,10 +145,33 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
             FilledTonalButton(onClick = viewModel::openScanner, modifier = Modifier.fillMaxWidth()) {
                 Icon(painterResource(R.drawable.ic_camera), contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Scan nutrition label")
+                Text("Scan barcode or label")
             }
 
             viewModel.scanNotice?.let { ScanNoticeCard(it, onDismiss = viewModel::dismissScanNotice) }
+
+            // The meal comes first so a saved meal can be logged under it in one tap.
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (meal in Meal.entries) {
+                    FilterChip(
+                        selected = form.meal == meal,
+                        onClick = { viewModel.update { copy(meal = meal) } },
+                        label = { Text(meal.label) },
+                    )
+                }
+            }
+
+            if (!viewModel.isEditing && savedMeals.isNotEmpty()) {
+                SavedMeals(
+                    meals = savedMeals,
+                    meal = form.meal,
+                    onLog = viewModel::logSavedMeal,
+                    onDelete = { deletingMeal = it },
+                )
+            }
 
             OutlinedTextField(
                 value = form.name,
@@ -153,6 +188,17 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
                     .testTag("field_name"),
             )
 
+            form.barcode?.let { code ->
+                InputChip(
+                    selected = false,
+                    onClick = viewModel::removeBarcode,
+                    label = { Text("Barcode $code") },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_barcode), contentDescription = null) },
+                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = "Forget barcode") },
+                    modifier = Modifier.testTag("barcode_chip"),
+                )
+            }
+
             val matches = suggestions.filterNot { it.name.equals(form.name.trim(), ignoreCase = true) }
             if (!viewModel.isEditing && matches.isNotEmpty()) {
                 Suggestions(
@@ -162,24 +208,13 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
                 )
             }
 
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (meal in Meal.entries) {
-                    FilterChip(
-                        selected = form.meal == meal,
-                        onClick = { viewModel.update { copy(meal = meal) } },
-                        label = { Text(meal.label) },
-                    )
-                }
-            }
-
+            val weight = form.servingWeight
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 NumberField(
-                    value = form.servings,
-                    onValueChange = { v -> viewModel.update { copy(servings = v) } },
-                    label = "Servings",
+                    value = form.amount,
+                    onValueChange = { v -> viewModel.update { copy(amount = v) } },
+                    label = if (form.byWeight) "Amount eaten" else "Servings",
+                    suffix = if (form.byWeight) weight?.unit else null,
                     isError = "servings" in viewModel.invalidFields,
                     modifier = Modifier
                         .weight(1f)
@@ -191,13 +226,19 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
                     label = { Text("Serving size") },
                     placeholder = { Text("e.g. 1 cup (240ml)") },
                     singleLine = true,
-                    modifier = Modifier.weight(1.6f),
+                    modifier = Modifier
+                        .weight(1.6f)
+                        .testTag("field_serving_size"),
                 )
+            }
+
+            if (weight != null) {
+                AmountUnit(form = form, weight = weight, onByWeight = viewModel::setByWeight)
             }
 
             viewModel.servingsPerContainer?.let { perPackage ->
                 AssistChip(
-                    onClick = { viewModel.update { copy(servings = perPackage.formatAmount()) } },
+                    onClick = { viewModel.update { withByWeight(false).copy(amount = perPackage.toInputText()) } },
                     label = { Text("Ate the whole package (${perPackage.formatAmount()} servings)") },
                 )
             }
@@ -242,7 +283,8 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
                 onClick = viewModel::save,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 8.dp)
+                    .testTag("save_entry"),
             ) { Text(if (viewModel.isEditing) "Save changes" else "Add to log") }
             Spacer(Modifier.height(24.dp))
         }
@@ -263,6 +305,97 @@ fun EntryScreen(viewModel: EntryViewModel, onDone: () -> Unit) {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
             },
         )
+    }
+
+    deletingMeal?.let { saved ->
+        AlertDialog(
+            onDismissRequest = { deletingMeal = null },
+            title = { Text("Delete \"${saved.meal.name}\"?") },
+            text = { Text("The saved meal is removed. Foods already logged from it stay in your log.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    deletingMeal = null
+                    viewModel.deleteSavedMeal(saved)
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingMeal = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/** Switches the amount between servings and the weight (or volume) eaten. */
+@Composable
+private fun AmountUnit(form: EntryForm, weight: ServingWeight, onByWeight: (Boolean) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Amount in", style = MaterialTheme.typography.bodyMedium)
+        FilterChip(
+            selected = !form.byWeight,
+            onClick = { onByWeight(false) },
+            label = { Text("Servings") },
+            modifier = Modifier.testTag("unit_servings"),
+        )
+        FilterChip(
+            selected = form.byWeight,
+            onClick = { onByWeight(true) },
+            label = { Text(if (weight.unit == "ml") "Millilitres" else "Grams") },
+            modifier = Modifier.testTag("unit_weight"),
+        )
+    }
+    val servings = form.servings() ?: return
+    Text(
+        if (form.byWeight) {
+            "${servings.formatAmount()} servings of ${weight.amount.formatAmount()} ${weight.unit}"
+        } else {
+            "${weight.weightOf(servings).formatAmount()} ${weight.unit} in total"
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag("amount_hint"),
+    )
+}
+
+@Composable
+private fun SavedMeals(
+    meals: List<SavedMealWithItems>,
+    meal: Meal,
+    onLog: (SavedMealWithItems) -> Unit,
+    onDelete: (SavedMealWithItems) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Saved meals · tap to log as ${meal.label.lowercase()}",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 4.dp),
+        )
+        meals.forEachIndexed { i, saved ->
+            if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClickLabel = "Log") { onLog(saved) }
+                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                    .testTag("saved_meal_${saved.meal.name}"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(saved.meal.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "${saved.items.size} food${if (saved.items.size == 1) "" else "s"} · " +
+                            "${saved.calories.formatWhole()} kcal",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { onDelete(saved) }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete ${saved.meal.name}")
+                }
+            }
+        }
     }
 }
 
@@ -302,32 +435,50 @@ private fun ScanNoticeCard(notice: ScanNotice, onDismiss: () -> Unit) {
     var showText by rememberSaveable { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("scan_notice"),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                "Filled in ${notice.filledCount} value${if (notice.filledCount == 1) "" else "s"} from the label",
-                style = MaterialTheme.typography.titleSmall,
-            )
-            Text(
-                buildString {
-                    append("Check them against the package before saving.")
-                    if (!notice.caloriesFound) append(" Calories weren't found, so enter them yourself.")
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Row {
-                TextButton(onClick = { showText = !showText }) {
-                    Text(if (showText) "Hide scanned text" else "Show scanned text")
+            when (notice) {
+                is ScanNotice.FromLabel -> {
+                    Text(
+                        "Filled in ${notice.filledCount} value${if (notice.filledCount == 1) "" else "s"} from the label",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Text(
+                        buildString {
+                            append("Check them against the package before saving.")
+                            if (!notice.caloriesFound) append(" Calories weren't found, so enter them yourself.")
+                            if (notice.barcodeSaved) append(" Next time, scanning the barcode fills all of this in.")
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row {
+                        TextButton(onClick = { showText = !showText }) {
+                            Text(if (showText) "Hide scanned text" else "Show scanned text")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = onDismiss) { Text("Dismiss") }
+                    }
+                    if (showText) {
+                        Text(
+                            notice.rows.joinToString("\n").ifEmpty { "(no text)" },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("Dismiss") }
-            }
-            if (showText) {
-                Text(
-                    notice.rows.joinToString("\n").ifEmpty { "(no text)" },
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                is ScanNotice.FromBarcode -> {
+                    Text("Found ${notice.foodName}", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Filled in from the last time you scanned this barcode. Set how much you had, then save.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row {
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = onDismiss) { Text("Dismiss") }
+                    }
+                }
             }
         }
     }

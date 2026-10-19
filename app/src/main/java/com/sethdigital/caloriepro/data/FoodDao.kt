@@ -13,8 +13,15 @@ interface FoodDao {
     @Query("SELECT * FROM food_entries WHERE epochDay = :epochDay ORDER BY createdAt")
     fun observeDay(epochDay: Long): Flow<List<FoodEntry>>
 
+    @Query("SELECT * FROM food_entries WHERE epochDay = :epochDay ORDER BY createdAt")
+    suspend fun day(epochDay: Long): List<FoodEntry>
+
     @Query("SELECT * FROM food_entries WHERE id = :id")
     suspend fun get(id: Long): FoodEntry?
+
+    /** The most recently logged food with this (normalized) barcode. */
+    @Query("SELECT * FROM food_entries WHERE barcode = :barcode ORDER BY createdAt DESC LIMIT 1")
+    suspend fun findByBarcode(barcode: String): FoodEntry?
 
     @Query(
         """
@@ -53,6 +60,9 @@ interface FoodDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: FoodEntry): Long
+
+    @Insert
+    suspend fun insertAll(entries: List<FoodEntry>)
 
     @Delete
     suspend fun delete(entry: FoodEntry)
