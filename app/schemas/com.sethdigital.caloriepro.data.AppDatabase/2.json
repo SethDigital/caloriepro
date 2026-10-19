@@ -1,0 +1,314 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "a155e95a3789642817a9fe7ffc4a988c",
+    "entities": [
+      {
+        "tableName": "food_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `epochDay` INTEGER NOT NULL, `name` TEXT NOT NULL, `meal` TEXT NOT NULL, `servings` REAL NOT NULL, `servingSize` TEXT, `calories` REAL NOT NULL, `proteinG` REAL, `carbsG` REAL, `fatG` REAL, `saturatedFatG` REAL, `sugarG` REAL, `fiberG` REAL, `sodiumMg` REAL, `caffeineMg` REAL, `createdAt` INTEGER NOT NULL, `barcode` TEXT, `byWeight` INTEGER NOT NULL DEFAULT 0)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epochDay",
+            "columnName": "epochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "meal",
+            "columnName": "meal",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servings",
+            "columnName": "servings",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servingSize",
+            "columnName": "servingSize",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "calories",
+            "columnName": "calories",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proteinG",
+            "columnName": "proteinG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "carbsG",
+            "columnName": "carbsG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fatG",
+            "columnName": "fatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "saturatedFatG",
+            "columnName": "saturatedFatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sugarG",
+            "columnName": "sugarG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fiberG",
+            "columnName": "fiberG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sodiumMg",
+            "columnName": "sodiumMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "caffeineMg",
+            "columnName": "caffeineMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "barcode",
+            "columnName": "barcode",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "byWeight",
+            "columnName": "byWeight",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_food_entries_epochDay",
+            "unique": false,
+            "columnNames": [
+              "epochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_food_entries_epochDay` ON `${TABLE_NAME}` (`epochDay`)"
+          },
+          {
+            "name": "index_food_entries_barcode",
+            "unique": false,
+            "columnNames": [
+              "barcode"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_food_entries_barcode` ON `${TABLE_NAME}` (`barcode`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "saved_meals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "saved_meal_items",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `mealId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `name` TEXT NOT NULL, `servings` REAL NOT NULL, `servingSize` TEXT, `calories` REAL NOT NULL, `proteinG` REAL, `carbsG` REAL, `fatG` REAL, `saturatedFatG` REAL, `sugarG` REAL, `fiberG` REAL, `sodiumMg` REAL, `caffeineMg` REAL, `barcode` TEXT, `byWeight` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mealId",
+            "columnName": "mealId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servings",
+            "columnName": "servings",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servingSize",
+            "columnName": "servingSize",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "calories",
+            "columnName": "calories",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "proteinG",
+            "columnName": "proteinG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "carbsG",
+            "columnName": "carbsG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fatG",
+            "columnName": "fatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "saturatedFatG",
+            "columnName": "saturatedFatG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sugarG",
+            "columnName": "sugarG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fiberG",
+            "columnName": "fiberG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sodiumMg",
+            "columnName": "sodiumMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "caffeineMg",
+            "columnName": "caffeineMg",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "barcode",
+            "columnName": "barcode",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "byWeight",
+            "columnName": "byWeight",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_saved_meal_items_mealId",
+            "unique": false,
+            "columnNames": [
+              "mealId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_saved_meal_items_mealId` ON `${TABLE_NAME}` (`mealId`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a155e95a3789642817a9fe7ffc4a988c')"
+    ]
+  }
+}
